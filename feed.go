@@ -2,6 +2,8 @@
 // instead of unmarshalling the whole document into a slice up front.
 package feedstream
 
+import "time"
+
 // Feed holds the channel/feed-level metadata that sits alongside the
 // item list in both RSS and Atom documents.
 type Feed struct {
@@ -18,6 +20,13 @@ type Item struct {
 	Link        string
 	Description string
 	GUID        string
-	PubDate     string
-	Author      string
+	// PubDate is the raw value of RSS <pubDate> or Atom <updated>,
+	// kept as-is since callers may want the original text.
+	PubDate string
+	// Published is PubDate parsed against the date layouts feeds
+	// actually use in practice. It's the zero Time if PubDate was
+	// empty or didn't match any of them, so check IsZero before
+	// relying on it.
+	Published time.Time
+	Author    string
 }

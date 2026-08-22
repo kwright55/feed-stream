@@ -4,6 +4,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 )
 
 const sampleRSS = `<?xml version="1.0"?>
@@ -56,6 +57,10 @@ func TestDecoderRSS(t *testing.T) {
 	if first.Description != "Hello & welcome" {
 		t.Fatalf("unexpected description: %q", first.Description)
 	}
+	wantPublished := time.Date(2006, time.January, 2, 15, 4, 5, 0, time.UTC)
+	if !first.Published.Equal(wantPublished) {
+		t.Fatalf("unexpected published time: %v", first.Published)
+	}
 
 	second, err := dec.Next()
 	if err != nil {
@@ -66,6 +71,9 @@ func TestDecoderRSS(t *testing.T) {
 	}
 	if !strings.Contains(second.Description, "Non-breaking") {
 		t.Fatalf("unnamed entity handling failed: %q", second.Description)
+	}
+	if !second.Published.IsZero() {
+		t.Fatalf("expected zero time for missing pubDate, got %v", second.Published)
 	}
 
 	if _, err := dec.Next(); err != io.EOF {
@@ -90,6 +98,10 @@ func TestDecoderAtom(t *testing.T) {
 	}
 	if entry.Author != "Jane" {
 		t.Fatalf("unexpected author: %q", entry.Author)
+	}
+	wantPublished := time.Date(2006, time.January, 2, 15, 4, 5, 0, time.UTC)
+	if !entry.Published.Equal(wantPublished) {
+		t.Fatalf("unexpected published time: %v", entry.Published)
 	}
 
 	if _, err := dec.Next(); err != io.EOF {

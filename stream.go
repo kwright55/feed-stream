@@ -139,6 +139,7 @@ func (d *Decoder) decodeItem(se xml.StartElement) (*Item, error) {
 			Description: e.Summary,
 			GUID:        e.ID,
 			PubDate:     e.Updated,
+			Published:   parseDate(e.Updated),
 			Author:      e.Author.Name,
 		}, nil
 	}
@@ -153,6 +154,7 @@ func (d *Decoder) decodeItem(se xml.StartElement) (*Item, error) {
 		Description: it.Description,
 		GUID:        it.GUID,
 		PubDate:     it.PubDate,
+		Published:   parseDate(it.PubDate),
 		Author:      it.Author,
 	}, nil
 }

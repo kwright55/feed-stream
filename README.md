@@ -58,12 +58,16 @@ func main() {
 normalizes them to the same `Item` struct, so callers don't need to know
 which format a given feed uses.
 
+`Item.PubDate` keeps the raw `pubDate`/`updated` text as-is; `Item.Published`
+holds it parsed into a `time.Time` against the layouts real feeds actually
+use, and is the zero `time.Time` if parsing failed, so check `IsZero()`
+before relying on it.
+
 ## Status
 
 Early. Core streaming decode for RSS 2.0 and Atom works and is covered
 by tests; see the issues for what's still missing (RDF/RSS 1.0 support,
-namespaced extensions like `content:encoded`, a helper for parsing
-`pubDate`/`updated` into `time.Time`).
+namespaced extensions like `content:encoded`).
 
 ## Install
 

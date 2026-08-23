@@ -1,5 +1,6 @@
-// Package feedstream reads RSS 2.0 and Atom feeds one item at a time
-// instead of unmarshalling the whole document into a slice up front.
+// Package feedstream reads RSS 2.0, RSS 1.0 (RDF), and Atom feeds one
+// item at a time instead of unmarshalling the whole document into a
+// slice up front.
 package feedstream
 
 import "time"

@@ -93,7 +93,13 @@ func (d *Decoder) captureFeedField(se xml.StartElement) error {
 	return nil
 }
 
-// rssItem mirrors the RSS 2.0 <item> element.
+// rssItem mirrors the RSS 2.0 <item> element. It doubles as the RSS 1.0
+// (RDF) <item> element, which uses the same title/link/description
+// elements but carries its date and author in the Dublin Core namespace
+// instead of pubDate/author, and has no guid element at all (rdf:about
+// on the item itself is the closest equivalent). encoding/xml matches
+// tags by local name when no namespace is given, so DCDate and DCCreator
+// pick up dc:date and dc:creator without needing a separate struct.
 type rssItem struct {
 	Title       string `xml:"title"`
 	Link        string `xml:"link"`
@@ -101,6 +107,8 @@ type rssItem struct {
 	GUID        string `xml:"guid"`
 	PubDate     string `xml:"pubDate"`
 	Author      string `xml:"author"`
+	DCDate      string `xml:"date"`
+	DCCreator   string `xml:"creator"`
 }
 
 // atomEntry mirrors the Atom <entry> element. Atom allows multiple
@@ -148,13 +156,34 @@ func (d *Decoder) decodeItem(se xml.StartElement) (*Item, error) {
 	if err := d.xd.DecodeElement(&it, &se); err != nil {
 		return nil, err
 	}
+
+	guid := it.GUID
+	if guid == "" {
+		// RSS 1.0 items have no guid element; rdf:about on the item
+		// itself is the nearest thing to a stable identifier.
+		for _, a := range se.Attr {
+			if a.Name.Local == "about" {
+				guid = a.Value
+				break
+			}
+		}
+	}
+	pubDate := it.PubDate
+	if pubDate == "" {
+		pubDate = it.DCDate
+	}
+	author := it.Author
+	if author == "" {
+		author = it.DCCreator
+	}
+
 	return &Item{
 		Title:       it.Title,
 		Link:        it.Link,
 		Description: it.Description,
-		GUID:        it.GUID,
-		PubDate:     it.PubDate,
-		Published:   parseDate(it.PubDate),
-		Author:      it.Author,
+		GUID:        guid,
+		PubDate:     pubDate,
+		Published:   parseDate(pubDate),
+		Author:      author,
 	}, nil
 }

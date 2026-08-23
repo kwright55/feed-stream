@@ -29,6 +29,25 @@ const sampleRSS = `<?xml version="1.0"?>
   </channel>
 </rss>`
 
+const sampleRDF = `<?xml version="1.0"?>
+<rdf:RDF
+    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+    xmlns="http://purl.org/rss/1.0/"
+    xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel rdf:about="https://example.com/rdf">
+    <title>Example RDF Log</title>
+    <link>https://example.com</link>
+    <description>Updates from example.com</description>
+  </channel>
+  <item rdf:about="https://example.com/rdf/1">
+    <title>RDF post</title>
+    <link>https://example.com/rdf/1</link>
+    <description>An RDF item</description>
+    <dc:date>2006-01-02T15:04:05Z</dc:date>
+    <dc:creator>Jane</dc:creator>
+  </item>
+</rdf:RDF>`
+
 const sampleAtom = `<?xml version="1.0"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
   <title>Example Atom Log</title>
@@ -82,6 +101,37 @@ func TestDecoderRSS(t *testing.T) {
 
 	feed := dec.Feed()
 	if feed.Title != "Example Log" || feed.Link != "https://example.com" {
+		t.Fatalf("unexpected feed metadata: %+v", feed)
+	}
+}
+
+func TestDecoderRDF(t *testing.T) {
+	dec := NewDecoder(strings.NewReader(sampleRDF))
+
+	item, err := dec.Next()
+	if err != nil {
+		t.Fatalf("item: %v", err)
+	}
+	if item.Title != "RDF post" || item.Link != "https://example.com/rdf/1" {
+		t.Fatalf("unexpected item: %+v", item)
+	}
+	if item.GUID != "https://example.com/rdf/1" {
+		t.Fatalf("unexpected guid (want rdf:about fallback): %q", item.GUID)
+	}
+	if item.Author != "Jane" {
+		t.Fatalf("unexpected author (want dc:creator fallback): %q", item.Author)
+	}
+	wantPublished := time.Date(2006, time.January, 2, 15, 4, 5, 0, time.UTC)
+	if !item.Published.Equal(wantPublished) {
+		t.Fatalf("unexpected published time (want dc:date fallback): %v", item.Published)
+	}
+
+	if _, err := dec.Next(); err != io.EOF {
+		t.Fatalf("expected io.EOF, got %v", err)
+	}
+
+	feed := dec.Feed()
+	if feed.Title != "Example RDF Log" || feed.Link != "https://example.com" {
 		t.Fatalf("unexpected feed metadata: %+v", feed)
 	}
 }

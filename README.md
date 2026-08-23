@@ -1,7 +1,7 @@
 # feed-stream
 
-A Go library for reading RSS 2.0 and Atom feeds one item at a time,
-without decoding the whole document into memory first.
+A Go library for reading RSS 2.0, RSS 1.0 (RDF), and Atom feeds one item
+at a time, without decoding the whole document into memory first.
 
 ## Why
 
@@ -54,9 +54,12 @@ func main() {
 }
 ```
 
-`Decoder` handles both RSS `<item>` and Atom `<entry>` elements and
-normalizes them to the same `Item` struct, so callers don't need to know
-which format a given feed uses.
+`Decoder` handles RSS `<item>` (2.0 and 1.0/RDF) and Atom `<entry>`
+elements and normalizes them to the same `Item` struct, so callers
+don't need to know which format a given feed uses. For RSS 1.0, which
+has no `<guid>` element and puts date/author in the Dublin Core
+namespace, `Item.GUID` falls back to the item's `rdf:about` attribute
+and `PubDate`/`Author` fall back to `dc:date`/`dc:creator`.
 
 `Item.PubDate` keeps the raw `pubDate`/`updated` text as-is; `Item.Published`
 holds it parsed into a `time.Time` against the layouts real feeds actually
@@ -65,9 +68,9 @@ before relying on it.
 
 ## Status
 
-Early. Core streaming decode for RSS 2.0 and Atom works and is covered
-by tests; see the issues for what's still missing (RDF/RSS 1.0 support,
-namespaced extensions like `content:encoded`).
+Early. Core streaming decode for RSS 2.0, RSS 1.0 (RDF), and Atom works
+and is covered by tests; see the issues for what's still missing
+(namespaced extensions like `content:encoded`, fuzz testing).
 
 ## Install
 

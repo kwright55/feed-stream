@@ -30,4 +30,14 @@ type Item struct {
 	// relying on it.
 	Published time.Time
 	Author    string
+	// Content is the full item body from the RSS content:encoded
+	// extension or an Atom <content> element, as opposed to the
+	// (often truncated) Description/Summary. Empty if the feed
+	// doesn't provide one.
+	Content string
+	// MediaURL and MediaType come from a Media RSS <media:content>
+	// element, commonly used for podcast audio/video enclosures.
+	// Both are empty if the item has no media:content.
+	MediaURL  string
+	MediaType string
 }

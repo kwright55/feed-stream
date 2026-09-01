@@ -109,6 +109,16 @@ type rssItem struct {
 	Author      string `xml:"author"`
 	DCDate      string `xml:"date"`
 	DCCreator   string `xml:"creator"`
+	// ContentEncoded is content:encoded from the RSS content module,
+	// picked up by local name the same way DCDate/DCCreator are.
+	ContentEncoded string `xml:"encoded"`
+	// Media is a media:content element (Media RSS), which carries its
+	// data as attributes on a self-closing element rather than as
+	// text, so it needs its own struct instead of a plain string.
+	Media struct {
+		URL  string `xml:"url,attr"`
+		Type string `xml:"type,attr"`
+	} `xml:"content"`
 }
 
 // atomEntry mirrors the Atom <entry> element. Atom allows multiple
@@ -119,9 +129,19 @@ type atomEntry struct {
 	ID      string `xml:"id"`
 	Updated string `xml:"updated"`
 	Summary string `xml:"summary"`
+	Content string `xml:"content"`
 	Author  struct {
 		Name string `xml:"name"`
 	} `xml:"author"`
+	// Media is a Media RSS media:content element, which some podcast
+	// feeds attach to Atom entries alongside the native <content>
+	// element. The namespace is given explicitly here (unlike the
+	// RSS side) because Atom's own <content> shares the local name
+	// "content" and would otherwise be ambiguous with it.
+	Media struct {
+		URL  string `xml:"url,attr"`
+		Type string `xml:"type,attr"`
+	} `xml:"http://search.yahoo.com/mrss/ content"`
 	Links []struct {
 		Href string `xml:"href,attr"`
 		Rel  string `xml:"rel,attr"`
@@ -149,6 +169,9 @@ func (d *Decoder) decodeItem(se xml.StartElement) (*Item, error) {
 			PubDate:     e.Updated,
 			Published:   parseDate(e.Updated),
 			Author:      e.Author.Name,
+			Content:     e.Content,
+			MediaURL:    e.Media.URL,
+			MediaType:   e.Media.Type,
 		}, nil
 	}
 
@@ -185,5 +208,8 @@ func (d *Decoder) decodeItem(se xml.StartElement) (*Item, error) {
 		PubDate:     pubDate,
 		Published:   parseDate(pubDate),
 		Author:      author,
+		Content:     it.ContentEncoded,
+		MediaURL:    it.Media.URL,
+		MediaType:   it.Media.Type,
 	}, nil
 }

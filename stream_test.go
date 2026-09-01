@@ -8,7 +8,9 @@ import (
 )
 
 const sampleRSS = `<?xml version="1.0"?>
-<rss version="2.0">
+<rss version="2.0"
+    xmlns:content="http://purl.org/rss/1.0/modules/content/"
+    xmlns:media="http://search.yahoo.com/mrss/">
   <channel>
     <title>Example Log</title>
     <link>https://example.com</link>
@@ -20,6 +22,8 @@ const sampleRSS = `<?xml version="1.0"?>
       <guid>https://example.com/1</guid>
       <pubDate>Mon, 02 Jan 2006 15:04:05 GMT</pubDate>
       <author>jane@example.com</author>
+      <content:encoded>&lt;p&gt;Full HTML body&lt;/p&gt;</content:encoded>
+      <media:content url="https://example.com/1.mp3" type="audio/mpeg"/>
     </item>
     <item>
       <title>Second post</title>
@@ -49,7 +53,7 @@ const sampleRDF = `<?xml version="1.0"?>
 </rdf:RDF>`
 
 const sampleAtom = `<?xml version="1.0"?>
-<feed xmlns="http://www.w3.org/2005/Atom">
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/">
   <title>Example Atom Log</title>
   <link href="https://example.com" rel="alternate"/>
   <subtitle>Atom updates</subtitle>
@@ -58,8 +62,10 @@ const sampleAtom = `<?xml version="1.0"?>
     <id>urn:uuid:1</id>
     <updated>2006-01-02T15:04:05Z</updated>
     <summary>An atom entry</summary>
+    <content>Full entry body</content>
     <author><name>Jane</name></author>
     <link href="https://example.com/atom/1" rel="alternate"/>
+    <media:content url="https://example.com/atom/1.mp3" type="audio/mpeg"/>
   </entry>
 </feed>`
 
@@ -79,6 +85,12 @@ func TestDecoderRSS(t *testing.T) {
 	wantPublished := time.Date(2006, time.January, 2, 15, 4, 5, 0, time.UTC)
 	if !first.Published.Equal(wantPublished) {
 		t.Fatalf("unexpected published time: %v", first.Published)
+	}
+	if first.Content != "<p>Full HTML body</p>" {
+		t.Fatalf("unexpected content:encoded: %q", first.Content)
+	}
+	if first.MediaURL != "https://example.com/1.mp3" || first.MediaType != "audio/mpeg" {
+		t.Fatalf("unexpected media:content: url=%q type=%q", first.MediaURL, first.MediaType)
 	}
 
 	second, err := dec.Next()
@@ -152,6 +164,12 @@ func TestDecoderAtom(t *testing.T) {
 	wantPublished := time.Date(2006, time.January, 2, 15, 4, 5, 0, time.UTC)
 	if !entry.Published.Equal(wantPublished) {
 		t.Fatalf("unexpected published time: %v", entry.Published)
+	}
+	if entry.Content != "Full entry body" {
+		t.Fatalf("unexpected content: %q", entry.Content)
+	}
+	if entry.MediaURL != "https://example.com/atom/1.mp3" || entry.MediaType != "audio/mpeg" {
+		t.Fatalf("unexpected media:content: url=%q type=%q", entry.MediaURL, entry.MediaType)
 	}
 
 	if _, err := dec.Next(); err != io.EOF {

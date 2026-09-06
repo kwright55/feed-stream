@@ -1,6 +1,7 @@
 package feedstream
 
 import (
+	"context"
 	"encoding/xml"
 	"io"
 )
@@ -11,6 +12,7 @@ import (
 // matters for feeds fetched over HTTP that can run to tens of megabytes.
 type Decoder struct {
 	xd   *xml.Decoder
+	cr   *ctxReader
 	feed Feed
 }
 
@@ -18,18 +20,62 @@ type Decoder struct {
 // Next is called; the caller is responsible for closing it (e.g. an
 // http.Response.Body) once done.
 func NewDecoder(r io.Reader) *Decoder {
-	xd := xml.NewDecoder(r)
+	cr := &ctxReader{r: r, ctx: context.Background()}
+	xd := xml.NewDecoder(cr)
 	// Real-world feeds routinely leak unescaped HTML entities like
 	// &nbsp; into description text. The strict XML entity set doesn't
 	// know these, so fall back to the HTML table instead of failing
 	// the whole decode over a stray entity.
 	xd.Entity = xml.HTMLEntity
-	return &Decoder{xd: xd}
+	return &Decoder{xd: xd, cr: cr}
+}
+
+// ctxReader lets a context passed to NextContext interrupt an
+// in-progress decode. It checks the context both before and after the
+// underlying Read, since Read itself may block for a while (a slow
+// connection, a stalled proxy) without knowing anything about the
+// context at all.
+type ctxReader struct {
+	r   io.Reader
+	ctx context.Context
+}
+
+func (cr *ctxReader) Read(p []byte) (int, error) {
+	if err := cr.ctx.Err(); err != nil {
+		return 0, err
+	}
+	n, err := cr.r.Read(p)
+	if err != nil {
+		return n, err
+	}
+	if err := cr.ctx.Err(); err != nil {
+		return n, err
+	}
+	return n, nil
 }
 
 // Next returns the next item in the feed. It returns io.EOF once the
 // document is exhausted, matching the convention of io.Reader.
 func (d *Decoder) Next() (*Item, error) {
+	return d.NextContext(context.Background())
+}
+
+// NextContext is Next with a context that can cancel a decode still in
+// progress. If ctx is already done, or becomes done while the
+// underlying reader is blocked on a Read, Next returns ctx.Err() (or an
+// error wrapping it, once the xml.Decoder has attached its own
+// position info) instead of waiting for more data.
+//
+// This only works if the wrapped io.Reader eventually returns from a
+// blocked Read once the peer goes away, since ctxReader can't interrupt
+// a call already in flight; it can only check the context before
+// starting one and right after one returns. Reading an
+// *http.Response.Body from a request built with http.NewRequestWithContext
+// satisfies this, since canceling that context closes the body itself.
+func (d *Decoder) NextContext(ctx context.Context) (*Item, error) {
+	d.cr.ctx = ctx
+	defer func() { d.cr.ctx = context.Background() }()
+
 	for {
 		tok, err := d.xd.Token()
 		if err != nil {

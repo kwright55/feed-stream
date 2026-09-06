@@ -1,6 +1,8 @@
 package feedstream
 
 import (
+	"context"
+	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -180,4 +182,97 @@ func TestDecoderAtom(t *testing.T) {
 	if feed.Title != "Example Atom Log" || feed.Description != "Atom updates" {
 		t.Fatalf("unexpected feed metadata: %+v", feed)
 	}
+}
+
+func TestNextContextAlreadyCanceled(t *testing.T) {
+	dec := NewDecoder(strings.NewReader(sampleRSS))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	if _, err := dec.NextContext(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got %v", err)
+	}
+}
+
+func TestNextContextThenNextStillWorks(t *testing.T) {
+	// A canceled NextContext call shouldn't leave the decoder wedged:
+	// a later plain Next (background context) must read normally.
+	dec := NewDecoder(strings.NewReader(sampleRSS))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := dec.NextContext(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got %v", err)
+	}
+
+	first, err := dec.Next()
+	if err != nil {
+		t.Fatalf("first item after canceled call: %v", err)
+	}
+	if first.Title != "First post" {
+		t.Fatalf("unexpected first item: %+v", first)
+	}
+}
+
+// TestCtxReader is a whitebox test of ctxReader itself, since driving it
+// through the full xml.Decoder/bufio stack can't deterministically pin
+// down which of the two ctx checks (before or after the underlying
+// Read) fired.
+func TestCtxReader(t *testing.T) {
+	t.Run("done before read", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		cr := &ctxReader{r: panicReader{}, ctx: ctx}
+
+		if _, err := cr.Read(make([]byte, 4)); !errors.Is(err, context.Canceled) {
+			t.Fatalf("expected context.Canceled, got %v", err)
+		}
+	})
+
+	t.Run("done after read", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		r := &cancelOnReadReader{data: "data", cancel: cancel}
+		cr := &ctxReader{r: r, ctx: ctx}
+
+		buf := make([]byte, 4)
+		n, err := cr.Read(buf)
+		if n != 4 {
+			t.Fatalf("expected the read bytes to still come through, got n=%d", n)
+		}
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("expected context.Canceled, got %v", err)
+		}
+	})
+
+	t.Run("passes through when not done", func(t *testing.T) {
+		cr := &ctxReader{r: strings.NewReader("data"), ctx: context.Background()}
+		buf := make([]byte, 4)
+		n, err := cr.Read(buf)
+		if err != nil || n != 4 || string(buf) != "data" {
+			t.Fatalf("unexpected read: n=%d err=%v buf=%q", n, err, buf)
+		}
+	})
+}
+
+// panicReader fails the test if Read is ever called on it, for
+// asserting that ctxReader short-circuits before reaching it.
+type panicReader struct{}
+
+func (panicReader) Read(p []byte) (int, error) {
+	panic("Read called on a reader that should have been short-circuited")
+}
+
+// cancelOnReadReader returns its data normally but cancels its own
+// context as a side effect, standing in for a context that goes done
+// while a real Read call is in flight.
+type cancelOnReadReader struct {
+	data   string
+	cancel context.CancelFunc
+}
+
+func (r *cancelOnReadReader) Read(p []byte) (int, error) {
+	n := copy(p, r.data)
+	r.cancel()
+	return n, nil
 }

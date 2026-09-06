@@ -66,6 +66,23 @@ holds it parsed into a `time.Time` against the layouts real feeds actually
 use, and is the zero `time.Time` if parsing failed, so check `IsZero()`
 before relying on it.
 
+`NextContext(ctx)` is `Next` with a context, for callers fetching a lot of
+feeds concurrently who need to give up on a slow one:
+
+```go
+item, err := dec.NextContext(ctx)
+if errors.Is(err, context.DeadlineExceeded) {
+	// this feed is taking too long; move on
+}
+```
+
+It can only cut a call short between reads or right after one returns; if
+the underlying reader blocks on a single Read indefinitely (a connection
+that never sends and never times out), NextContext can't interrupt it.
+Building the request with `http.NewRequestWithContext` using the same
+context covers that case, since canceling it closes the response body and
+unblocks the read.
+
 ## Status
 
 Early. Core streaming decode for RSS 2.0, RSS 1.0 (RDF), and Atom works

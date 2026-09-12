@@ -150,8 +150,16 @@ type rssItem struct {
 	Title       string `xml:"title"`
 	Link        string `xml:"link"`
 	Description string `xml:"description"`
-	GUID        string `xml:"guid"`
-	PubDate     string `xml:"pubDate"`
+	// GUID is a nested struct rather than a plain string because the
+	// isPermaLink attribute lives alongside the text, not inside it.
+	// encoding/xml matches both the element and its attribute by local
+	// name, so this doesn't care what namespace prefix (if any) a feed
+	// puts on isPermaLink.
+	GUID struct {
+		Value       string `xml:",chardata"`
+		IsPermaLink string `xml:"isPermaLink,attr"`
+	} `xml:"guid"`
+	PubDate string `xml:"pubDate"`
 	Author      string `xml:"author"`
 	DCDate      string `xml:"date"`
 	DCCreator   string `xml:"creator"`
@@ -226,10 +234,14 @@ func (d *Decoder) decodeItem(se xml.StartElement) (*Item, error) {
 		return nil, err
 	}
 
-	guid := it.GUID
+	guid := it.GUID.Value
+	// isPermaLink defaults to true per the RSS 2.0 spec when the guid
+	// element is present but the attribute itself is omitted.
+	guidIsPermaLink := guid != "" && it.GUID.IsPermaLink != "false"
 	if guid == "" {
 		// RSS 1.0 items have no guid element; rdf:about on the item
-		// itself is the nearest thing to a stable identifier.
+		// itself is the nearest thing to a stable identifier, but it
+		// carries no isPermaLink concept of its own.
 		for _, a := range se.Attr {
 			if a.Name.Local == "about" {
 				guid = a.Value
@@ -247,15 +259,16 @@ func (d *Decoder) decodeItem(se xml.StartElement) (*Item, error) {
 	}
 
 	return &Item{
-		Title:       it.Title,
-		Link:        it.Link,
-		Description: it.Description,
-		GUID:        guid,
-		PubDate:     pubDate,
-		Published:   parseDate(pubDate),
-		Author:      author,
-		Content:     it.ContentEncoded,
-		MediaURL:    it.Media.URL,
-		MediaType:   it.Media.Type,
+		Title:           it.Title,
+		Link:            it.Link,
+		Description:     it.Description,
+		GUID:            guid,
+		GUIDIsPermaLink: guidIsPermaLink,
+		PubDate:         pubDate,
+		Published:       parseDate(pubDate),
+		Author:          author,
+		Content:         it.ContentEncoded,
+		MediaURL:        it.Media.URL,
+		MediaType:       it.Media.Type,
 	}, nil
 }

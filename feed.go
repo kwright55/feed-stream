@@ -21,6 +21,12 @@ type Item struct {
 	Link        string
 	Description string
 	GUID        string
+	// GUIDIsPermaLink reflects the RSS <guid isPermaLink="..."> attribute.
+	// Per the RSS 2.0 spec it defaults to true when the guid element is
+	// present but the attribute is omitted, so this is only meaningful
+	// when GUID is non-empty; it's false for the RSS 1.0 rdf:about
+	// fallback and for Atom, since neither carries the concept.
+	GUIDIsPermaLink bool
 	// PubDate is the raw value of RSS <pubDate> or Atom <updated>,
 	// kept as-is since callers may want the original text.
 	PubDate string

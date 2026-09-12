@@ -61,6 +61,11 @@ has no `<guid>` element and puts date/author in the Dublin Core
 namespace, `Item.GUID` falls back to the item's `rdf:about` attribute
 and `PubDate`/`Author` fall back to `dc:date`/`dc:creator`.
 
+`Item.GUIDIsPermaLink` mirrors the RSS `<guid isPermaLink="...">` attribute,
+defaulting to `true` when a `<guid>` element is present without it, per the
+RSS 2.0 spec. It's `false` for the RSS 1.0 `rdf:about` fallback and for Atom
+entries, since neither carries the concept.
+
 `Item.PubDate` keeps the raw `pubDate`/`updated` text as-is; `Item.Published`
 holds it parsed into a `time.Time` against the layouts real feeds actually
 use, and is the zero `time.Time` if parsing failed, so check `IsZero()`

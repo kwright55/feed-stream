@@ -32,6 +32,11 @@ const sampleRSS = `<?xml version="1.0"?>
       <link>https://example.com/2</link>
       <description>Non-breaking&nbsp;space test</description>
     </item>
+    <item>
+      <title>Third post</title>
+      <link>https://example.com/3</link>
+      <guid isPermaLink="false">tag:example.com,2024:3</guid>
+    </item>
   </channel>
 </rss>`
 
@@ -94,6 +99,9 @@ func TestDecoderRSS(t *testing.T) {
 	if first.MediaURL != "https://example.com/1.mp3" || first.MediaType != "audio/mpeg" {
 		t.Fatalf("unexpected media:content: url=%q type=%q", first.MediaURL, first.MediaType)
 	}
+	if !first.GUIDIsPermaLink {
+		t.Fatalf("expected GUIDIsPermaLink to default true when isPermaLink is omitted")
+	}
 
 	second, err := dec.Next()
 	if err != nil {
@@ -107,6 +115,20 @@ func TestDecoderRSS(t *testing.T) {
 	}
 	if !second.Published.IsZero() {
 		t.Fatalf("expected zero time for missing pubDate, got %v", second.Published)
+	}
+	if second.GUIDIsPermaLink {
+		t.Fatalf("expected GUIDIsPermaLink false when there's no guid at all")
+	}
+
+	third, err := dec.Next()
+	if err != nil {
+		t.Fatalf("third item: %v", err)
+	}
+	if third.GUID != "tag:example.com,2024:3" {
+		t.Fatalf("unexpected guid: %q", third.GUID)
+	}
+	if third.GUIDIsPermaLink {
+		t.Fatalf("expected GUIDIsPermaLink false when isPermaLink=\"false\"")
 	}
 
 	if _, err := dec.Next(); err != io.EOF {
@@ -131,6 +153,9 @@ func TestDecoderRDF(t *testing.T) {
 	}
 	if item.GUID != "https://example.com/rdf/1" {
 		t.Fatalf("unexpected guid (want rdf:about fallback): %q", item.GUID)
+	}
+	if item.GUIDIsPermaLink {
+		t.Fatalf("expected GUIDIsPermaLink false for the rdf:about fallback")
 	}
 	if item.Author != "Jane" {
 		t.Fatalf("unexpected author (want dc:creator fallback): %q", item.Author)
